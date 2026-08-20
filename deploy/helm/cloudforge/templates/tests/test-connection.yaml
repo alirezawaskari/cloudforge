@@ -6,7 +6,12 @@ metadata:
     {{- include "cloudforge.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # Deliberately not "hook-succeeded": deleting the pod immediately on
+    # success makes `helm test --logs` fail trying to fetch logs from a pod
+    # that's already gone, even though the test itself passed. Cleanup
+    # happens naturally on the next `helm test`/install via
+    # before-hook-creation instead.
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   containers:
     - name: wget

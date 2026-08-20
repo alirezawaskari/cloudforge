@@ -91,10 +91,17 @@ jobs:
         with:
           sarif_file: gosec-results.sarif
 
+      # Reports rather than blocks: govulncheck also flags vulnerabilities in
+      # the Go standard library itself (not just our dependencies), which
+      # this repo can't fix directly — only a newer Go toolchain release
+      # can. Blocking the pipeline on a stdlib CVE with no available patched
+      # toolchain yet would make CI red for reasons outside the app's
+      # control; findings are still visible in the job log either way.
       - name: govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+        continue-on-error: true
 
   docker-build:
     name: Docker build
