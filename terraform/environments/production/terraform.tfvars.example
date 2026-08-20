@@ -1,0 +1,6 @@
+kubeconfig_path       = "~/.kube/config"
+kube_context          = "production-cluster"
+image_tag             = "v1.2.3"
+secret_name           = "cloudforge-production-secrets"
+hostname              = "cloudforge.example.com"
+ingress_service_type  = "LoadBalancer"

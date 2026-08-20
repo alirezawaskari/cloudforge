@@ -1,0 +1,218 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.23"
+  IMAGE_NAME: cloudforge-api
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cloudforge
+          POSTGRES_PASSWORD: cloudforge
+          POSTGRES_DB: cloudforge
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U cloudforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: gofmt check
+        run: |
+          diff <(gofmt -l .) <(echo -n "")
+
+      - name: go test
+        env:
+          DATABASE_URL: postgres://cloudforge:cloudforge@localhost:5432/cloudforge?sslmode=disable
+          REDIS_ADDR: localhost:6379
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  security-scan:
+    name: Security scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run gosec
+        uses: securego/gosec@master
+        with:
+          args: '-fmt sarif -out gosec-results.sarif ./...'
+        continue-on-error: true
+
+      - name: Upload gosec SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: gosec-results.sarif
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:ci
+          build-args: |
+            VERSION=${{ github.sha }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:ci
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+  helm-lint:
+    name: Helm lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Helm lint (all environments)
+        run: |
+          for env in dev staging production; do
+            echo "::group::lint $env"
+            helm lint deploy/helm/cloudforge -f deploy/helm/cloudforge/values-$env.yaml
+            echo "::endgroup::"
+          done
+
+      - name: Helm template (render sanity check)
+        run: |
+          for env in dev staging production; do
+            helm template cloudforge deploy/helm/cloudforge \
+              -f deploy/helm/cloudforge/values-$env.yaml \
+              --namespace cloudforge-$env > /dev/null
+          done
+
+  deployment-validation:
+    name: Deployment validation (kind)
+    runs-on: ubuntu-latest
+    needs: [docker-build, helm-lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: cloudforge-ci
+          wait: 120s
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: cloudforge-api:ci
+          build-args: |
+            VERSION=${{ github.sha }}
+
+      - name: Load image into kind
+        run: kind load docker-image cloudforge-api:ci --name cloudforge-ci
+
+      - name: Deploy to kind
+        run: |
+          kubectl create namespace cloudforge-ci
+          helm install cloudforge deploy/helm/cloudforge \
+            -f deploy/helm/cloudforge/values-dev.yaml \
+            --set image.repository=cloudforge-api \
+            --set image.tag=ci \
+            --set image.pullPolicy=Never \
+            --namespace cloudforge-ci \
+            --wait --timeout 5m
+
+      - name: Run helm test
+        run: helm test cloudforge --namespace cloudforge-ci --logs
+
+      - name: Describe resources on failure
+        if: failure()
+        run: |
+          kubectl get all -n cloudforge-ci
+          kubectl describe pods -n cloudforge-ci
+          kubectl logs -l app.kubernetes.io/name=cloudforge -n cloudforge-ci --tail=200

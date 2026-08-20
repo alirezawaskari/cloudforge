@@ -1,0 +1,166 @@
+# Regenerate after editing the dashboard with:
+#   kubectl create configmap cloudforge-dashboard \
+#     --from-file=cloudforge-api.json=observability/grafana/dashboards/cloudforge-api.json \
+#     -n observability --dry-run=client -o yaml \
+#     | (head -1; echo '  labels: {grafana_dashboard: "true"}'; tail -n +2) \
+#     > observability/grafana/dashboard-configmap.yaml
+apiVersion: v1
+data:
+  cloudforge-api.json: |
+    {
+      "title": "Cloudforge API",
+      "uid": "cloudforge-api",
+      "tags": ["cloudforge", "golang", "rest-api"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": { "from": "now-6h", "to": "now" },
+      "templating": {
+        "list": [
+          {
+            "name": "namespace",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "query": "label_values(http_requests_total, namespace)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "datasource",
+            "type": "datasource",
+            "query": "prometheus"
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request rate (req/s)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total[5m])) by (route)",
+              "legendFormat": "{{route}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Error rate (5xx %)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "max": 1, "min": 0 }
+          },
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m]))",
+              "legendFormat": "error rate"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Latency p50 / p95 / p99",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "In-flight requests",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "http_requests_in_flight",
+              "legendFormat": "in-flight"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Pod count (running vs desired)",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "kube_deployment_status_replicas{deployment=\"cloudforge\"}",
+              "legendFormat": "running"
+            },
+            {
+              "expr": "kube_horizontalpodautoscaler_status_desired_replicas{horizontalpodautoscaler=\"cloudforge\"}",
+              "legendFormat": "hpa desired"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "CPU usage vs limit",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"cloudforge-.*\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Memory usage vs limit",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": { "defaults": { "unit": "bytes" } },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{pod=~\"cloudforge-.*\"}) by (pod)",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "Go goroutines",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "targets": [
+            {
+              "expr": "go_goroutines",
+              "legendFormat": "{{pod}}"
+            }
+          ]
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  name: cloudforge-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "true"

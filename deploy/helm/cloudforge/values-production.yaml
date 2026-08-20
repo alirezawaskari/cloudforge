@@ -1,0 +1,87 @@
+## Production overlay — HA replica count, autoscaling headroom, strict
+## PodDisruptionBudget, TLS ingress, and managed datastores.
+##
+## NOTE: in a real production deployment, postgresql.enabled and redis.enabled
+## should be set to false here and DATABASE_URL / REDIS_ADDR pointed at a
+## managed service (RDS, Cloud SQL, ElastiCache, MemoryStore, etc.) via
+## secrets.existingSecret. The in-cluster subcharts are kept enabled by
+## default so `helm install` produces a fully working stack out of the box.
+
+replicaCount: 3
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: cloudforge.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: cloudforge-production-tls
+      hosts:
+        - cloudforge.example.com
+
+env:
+  APP_ENV: production
+  OTEL_ENABLED: "true"
+
+secrets:
+  ## Populated from an external secret manager in real deployments — see
+  ## docs/SECRETS.md. Leave `data` unset here and set existingSecret instead:
+  existingSecret: "cloudforge-production-secrets"
+
+serviceMonitor:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+postgresql:
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+redis:
+  master:
+    persistence:
+      enabled: true
+      size: 4Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

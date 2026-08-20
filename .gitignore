@@ -1,0 +1,16 @@
+bin/
+tmp/
+*.log
+.env
+.env.local
+.DS_Store
+dist/
+coverage.out
+node_modules/
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
+k6-results/
+deploy/helm/cloudforge/charts/*.tgz

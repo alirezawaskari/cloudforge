@@ -1,0 +1,7 @@
+kubeconfig_path   = "~/.kube/config"
+kube_context      = "staging-cluster"
+image_tag         = "sha-abc1234"
+# Set the real value via TF_VAR_database_password instead of committing it here.
+database_password = "CHANGE_ME"
+hostname          = "staging.cloudforge.example.com"
+enable_monitoring = true

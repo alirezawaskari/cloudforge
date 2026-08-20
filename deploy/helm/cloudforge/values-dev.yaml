@@ -1,0 +1,51 @@
+## Development overlay — single replica, no autoscaling, relaxed resources,
+## ingress disabled (use `kubectl port-forward` or `helm test` locally).
+
+replicaCount: 1
+
+image:
+  pullPolicy: IfNotPresent
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 128Mi
+
+ingress:
+  enabled: false
+
+env:
+  APP_ENV: development
+  OTEL_ENABLED: "false"
+
+serviceMonitor:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+postgresql:
+  primary:
+    persistence:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+redis:
+  master:
+    persistence:
+      enabled: false

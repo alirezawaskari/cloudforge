@@ -1,0 +1,49 @@
+## Values for grafana/loki-stack (Loki + Promtail), sized for a kind/minikube
+## demo cluster. For production, run Loki in simple-scalable or microservices
+## mode with object storage (S3/GCS) instead of filesystem persistence.
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+promtail:
+  enabled: true
+  config:
+    snippets:
+      pipelineStages:
+        - cri: {}
+        - json:
+            expressions:
+              level: level
+              route: path
+              status: status
+              request_id: request_id
+        - labels:
+            level:
+            status:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+grafana:
+  enabled: false # Grafana is deployed by kube-prometheus-stack; Loki is added as a datasource there
+
+test:
+  enabled: false

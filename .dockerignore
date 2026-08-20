@@ -1,0 +1,12 @@
+.git
+.github
+deploy
+docs
+terraform
+observability
+load-test
+*.md
+bin/
+tmp/
+.env
+.env.*

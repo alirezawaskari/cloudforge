@@ -1,0 +1,44 @@
+# OpenTelemetry Collector configuration, deployed via the
+# open-telemetry/opentelemetry-collector Helm chart as a ConfigMap override
+# (--set-file config=observability/otel/otel-collector-config.yaml), or
+# consumed directly by the OpenTelemetryCollector CRD if the Operator is
+# installed. Receives OTLP traces from cloudforge, samples, and exports to
+# both a local debug exporter and (optionally) a tracing backend such as
+# Tempo, Jaeger, or a vendor OTLP endpoint.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 400
+    spike_limit_mib: 100
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 2s
+
+exporters:
+  debug:
+    verbosity: basic
+  otlp/tempo:
+    endpoint: tempo.observability.svc.cluster.local:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [debug, otlp/tempo]
+  telemetry:
+    logs:
+      level: info

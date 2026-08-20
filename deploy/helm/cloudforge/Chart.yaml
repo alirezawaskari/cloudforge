@@ -1,0 +1,14 @@
+apiVersion: v2
+name: cloudforge
+description: Production-style Helm chart for the cloudforge REST API
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - go
+  - rest-api
+  - postgresql
+  - redis
+home: https://github.com/alirezawaskari/cloudforge
+maintainers:
+  - name: Alireza Askari

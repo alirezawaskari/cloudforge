@@ -1,0 +1,205 @@
+## Default values for the cloudforge chart.
+## Environment-specific overrides live in values-dev.yaml, values-staging.yaml,
+## and values-production.yaml — see deploy/helm/cloudforge/README.md.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/alirezawaskari/cloudforge-api
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automount: false
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: cloudforge.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+probes:
+  liveness:
+    path: /livez
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    path: /readyz
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  startup:
+    path: /startupz
+    periodSeconds: 5
+    failureThreshold: 30 # allow up to ~150s for slow dependency connections
+
+deployment:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  terminationGracePeriodSeconds: 30
+
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels: {}
+
+env:
+  APP_ENV: development
+  PORT: "8080"
+  DB_MAX_CONNS: "10"
+  DB_CONN_TIMEOUT: 5s
+  SHUTDOWN_TIMEOUT: 15s
+  REDIS_DB: "0"
+  OTEL_ENABLED: "false"
+  OTEL_SERVICE_NAME: cloudforge-api
+  OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector.observability.svc.cluster.local:4317"
+
+## Application secrets. In production these keys should be populated by an
+## external secret manager (see docs/SECRETS.md) rather than committed here.
+## When existingSecret is set, the chart will not render its own Secret and
+## will instead reference the named secret directly.
+secrets:
+  existingSecret: ""
+  data:
+    DATABASE_URL: "postgres://cloudforge:cloudforge@cloudforge-postgresql:5432/cloudforge?sslmode=disable"
+    REDIS_ADDR: "cloudforge-redis-master:6379"
+    REDIS_PASSWORD: ""
+
+networkPolicy:
+  enabled: true
+  allowNamespaces: []       # namespaces (by kubernetes.io/metadata.name label) allowed to reach the app
+  allowIngressFromIngressController: true
+
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  path: /metrics
+  labels: {}
+
+## Minimal, self-contained PostgreSQL StatefulSet for local/dev/demo use
+## (deploy/helm/cloudforge/templates/postgresql.yaml). Plain upstream
+## postgres:16-alpine — no third-party subchart, no external chart repo
+## dependency. For staging/production, disable this and point
+## secrets.data.DATABASE_URL at a managed database instead (see
+## docs/SECRETS.md and values-production.yaml).
+postgresql:
+  enabled: true
+  image: postgres:16-alpine
+  auth:
+    username: cloudforge
+    password: cloudforge
+    database: cloudforge
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+## Minimal, self-contained Redis StatefulSet for local/dev/demo use
+## (deploy/helm/cloudforge/templates/redis.yaml). Plain upstream
+## redis:7-alpine. For staging/production, disable this and point
+## secrets.data.REDIS_ADDR at a managed cache instead.
+redis:
+  enabled: true
+  image: redis:7-alpine
+  auth:
+    enabled: false
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 512Mi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi

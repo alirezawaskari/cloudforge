@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cloudforge.fullname" . }}
+  labels:
+    {{- include "cloudforge.labels" . | nindent 4 }}
+  {{- if .Values.serviceMonitor.enabled }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ .Values.service.targetPort | quote }}
+    prometheus.io/path: {{ .Values.serviceMonitor.path }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "cloudforge.selectorLabels" . | nindent 4 }}

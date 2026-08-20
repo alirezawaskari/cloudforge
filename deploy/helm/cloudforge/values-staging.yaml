@@ -1,0 +1,57 @@
+## Staging overlay — mirrors production topology at reduced scale/cost,
+## used to validate releases before they roll out to production.
+
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+  hosts:
+    - host: staging.cloudforge.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: cloudforge-staging-tls
+      hosts:
+        - staging.cloudforge.example.com
+
+env:
+  APP_ENV: staging
+  OTEL_ENABLED: "true"
+
+serviceMonitor:
+  enabled: true
+
+networkPolicy:
+  enabled: true
+
+postgresql:
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+redis:
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi

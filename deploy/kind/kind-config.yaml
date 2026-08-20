@@ -1,0 +1,23 @@
+# kind cluster config for local development.
+# Maps host 8080/8443 to the ingress-nginx controller on the control-plane
+# node so `kubectl apply`'d Ingress resources are reachable at localhost.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cloudforge
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 8443
+        protocol: TCP
+  - role: worker
+  - role: worker

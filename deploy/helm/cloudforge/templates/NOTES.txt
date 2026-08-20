@@ -1,0 +1,20 @@
+cloudforge has been deployed as {{ include "cloudforge.fullname" . }} in namespace {{ .Release.Namespace }}.
+
+Check rollout status:
+  kubectl rollout status deployment/{{ include "cloudforge.fullname" . }} -n {{ .Release.Namespace }}
+
+{{- if .Values.ingress.enabled }}
+
+The API is exposed via Ingress at:
+{{- range .Values.ingress.hosts }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+{{- end }}
+{{- else }}
+
+The API is only reachable inside the cluster. Port-forward to reach it locally:
+  kubectl port-forward svc/{{ include "cloudforge.fullname" . }} -n {{ .Release.Namespace }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/livez
+{{- end }}
+
+Run the built-in smoke test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}
