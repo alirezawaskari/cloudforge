@@ -67,7 +67,7 @@ func run(logger *slog.Logger) error {
 	health := &handlers.HealthAPI{DB: db, Cache: cache}
 	items := &handlers.ItemsAPI{DB: db, Cache: cache, Logger: logger}
 
-	router := newRouter(logger, health, items)
+	router := newRouter(logger, health, items, cfg.APIKey)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -194,7 +194,7 @@ func shutdown(srv *http.Server, health *handlers.HealthAPI, cfg *config.Config, 
 	return nil
 }
 
-func newRouter(logger *slog.Logger, health *handlers.HealthAPI, items *handlers.ItemsAPI) http.Handler {
+func newRouter(logger *slog.Logger, health *handlers.HealthAPI, items *handlers.ItemsAPI, apiKey string) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(chimw.RequestID)
@@ -209,7 +209,10 @@ func newRouter(logger *slog.Logger, health *handlers.HealthAPI, items *handlers.
 	r.Get("/version", handlers.Version)
 	r.Handle("/metrics", promhttp.Handler())
 
-	r.Route("/api/v1/items", items.Routes)
+	r.Route("/api/v1/items", func(sr chi.Router) {
+		sr.Use(appmw.RequireAPIKey(apiKey))
+		items.Routes(sr)
+	})
 
 	return r
 }

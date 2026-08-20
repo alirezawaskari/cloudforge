@@ -40,6 +40,13 @@
 
 ## Application
 
+- `/api/v1/items` requires a pre-shared key in the `X-API-Key` header
+  (`internal/middleware/auth.go`); the server refuses to start if `API_KEY`
+  isn't set (`internal/config/config.go`), so there's no silent
+  fail-open. This is a single shared secret, not per-caller identity —
+  fine for one trusted caller behind the NetworkPolicy below, but should
+  become JWT/mTLS if a second distinct caller ever needs to be told apart
+  from the first.
 - Postgres access goes through `pgx`'s parameterized queries exclusively
   (see [internal/handlers/items.go](../internal/handlers/items.go)) — no
   string-built SQL anywhere in the codebase.

@@ -21,6 +21,8 @@ type Config struct {
 	RedisDB                int
 	ShutdownTimeout        time.Duration
 
+	APIKey string
+
 	OTelExporterEndpoint string
 	OTelServiceName      string
 	OTelEnabled          bool
@@ -41,10 +43,14 @@ func Load() (*Config, error) {
 		OTelExporterEndpoint:   getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 		OTelServiceName:        getEnv("OTEL_SERVICE_NAME", "cloudforge-api"),
 		OTelEnabled:            getEnvBool("OTEL_ENABLED", false),
+		APIKey:                 getEnv("API_KEY", ""),
 	}
 
 	if cfg.Port == "" {
 		return nil, fmt.Errorf("PORT must not be empty")
+	}
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("API_KEY must be set (used to authenticate writes to /api/v1/items)")
 	}
 	return cfg, nil
 }

@@ -38,6 +38,8 @@ services:
       DATABASE_URL: postgres://cloudforge:cloudforge@postgres:5432/cloudforge?sslmode=disable
       REDIS_ADDR: redis:6379
       OTEL_ENABLED: "false"
+      # Dev-only key, not for any real deployment -- see .env.example.
+      API_KEY: local-dev-key
     depends_on:
       postgres:
         condition: service_healthy

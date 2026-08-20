@@ -145,6 +145,10 @@ secrets:
     DATABASE_URL: "postgres://cloudforge:cloudforge@cloudforge-postgresql:5432/cloudforge?sslmode=disable"
     REDIS_ADDR: "cloudforge-redis-master:6379"
     REDIS_PASSWORD: ""
+    # Pre-shared secret required in the X-API-Key header for /api/v1/items.
+    # Startup fails if unset -- always override in production via
+    # existingSecret / an external secret manager, never leave this default.
+    API_KEY: "changeme"
 
 networkPolicy:
   enabled: true

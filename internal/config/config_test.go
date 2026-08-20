@@ -7,6 +7,7 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	t.Setenv("PORT", "")
+	t.Setenv("API_KEY", "test-key")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -23,6 +24,7 @@ func TestLoadFromEnv(t *testing.T) {
 	t.Setenv("PORT", "9090")
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("SHUTDOWN_TIMEOUT", "30s")
+	t.Setenv("API_KEY", "test-key")
 
 	cfg, err := Load()
 	if err != nil {
@@ -36,5 +38,13 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if cfg.ShutdownTimeout != 30*time.Second {
 		t.Errorf("expected 30s shutdown timeout, got %v", cfg.ShutdownTimeout)
+	}
+}
+
+func TestLoadRequiresAPIKey(t *testing.T) {
+	t.Setenv("API_KEY", "")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected an error when API_KEY is unset, got nil")
 	}
 }

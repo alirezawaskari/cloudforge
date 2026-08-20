@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 ## ---- runtime stage ----
 FROM alpine:3.24 AS runtime
 
-RUN apk add --no-cache ca-certificates && \
+RUN apk add --no-cache ca-certificates curl && \
     addgroup -S app && adduser -S -G app -u 10001 app
 
 WORKDIR /
@@ -38,5 +38,8 @@ COPY --from=build /out/cloudforge-api /cloudforge-api
 USER app:app
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -fsS http://localhost:8080/livez || exit 1
 
 ENTRYPOINT ["/cloudforge-api"]
